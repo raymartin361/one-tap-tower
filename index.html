@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>One-Tap Tower — Daily Stacking Challenge</title>
+<meta name="description" content="One-button block stacking arcade. A new tower every day — stack it high, share your score, challenge your friends.">
+<meta name="theme-color" content="#0b1026">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<!-- SHIP-TIME: replace og:image / twitter:image with the ABSOLUTE https URL of og-image.png once hosted (GitHub Pages / itch.io). Scrapers ignore relative URLs. -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="One-Tap Tower — Daily Stacking Challenge">
+<meta property="og:description" content="One tap to drop. A new tower every day. Stack it high, share your score, challenge your friends.">
+<meta property="og:image" content="og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="One-Tap Tower — Daily Stacking Challenge">
+<meta name="twitter:description" content="One tap to drop. A new tower every day. Can you beat your friends?">
+<meta name="twitter:image" content="og-image.png">
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  ANALYTICS TODO — do this at ship time (Day 7):
+  1. Create a FREE counter at https://www.goatcounter.com (no cookies,
+     GDPR-friendly, perfect for a static game page).
+  2. Paste your real snippet below, replacing YOUR-CODE with the code
+     GoatCounter gave you. Do NOT invent a URL.
+
+  <script data-goatcounter="https://YOUR-CODE.goatcounter.com/count"
+          async src="//gc.zgo.at/count.js"></script>
+
+  The dashboard's "Referrers" view will show which channel (itch.io,
+  Reddit, Shorts…) actually sends players. That data drives weeks 3–4.
+  ═══════════════════════════════════════════════════════════════════
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    width:100%; height:100%; overflow:hidden; overscroll-behavior:none;
+    background:#0b1026; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:#fff; user-select:none; -webkit-user-select:none; touch-action:none;
+  }
+  #game { position:fixed; inset:0; display:block; touch-action:none; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; align-items:flex-start;
+         justify-content:space-between; padding:calc(10px + env(safe-area-inset-top)) 14px 0;
+         pointer-events:none; z-index:5; }
+  #hud.hidden { display:none; }
+  #hudLeft { display:flex; flex-direction:column; gap:2px; }
+  #dailyLabel { font-size:13px; font-weight:700; letter-spacing:.4px; opacity:.92;
+                background:rgba(0,0,0,.35); padding:5px 10px; border-radius:999px; width:max-content; }
+  #streakLabel { font-size:12px; opacity:.85; background:rgba(0,0,0,.35);
+                 padding:4px 10px; border-radius:999px; width:max-content; }
+  #scoreLabel { font-size:44px; font-weight:800; line-height:1;
+                text-shadow:0 3px 12px rgba(0,0,0,.55); }
+  #muteBtn { pointer-events:auto; font-size:20px; background:rgba(0,0,0,.35); border:none;
+             border-radius:999px; width:42px; height:42px; cursor:pointer; color:#fff; }
+
+  /* ---------- Overlays ---------- */
+  .overlay { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column;
+             align-items:center; justify-content:center; text-align:center; padding:24px;
+             background:rgba(8,10,28,.55); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  .overlay.hidden { display:none; }
+  .tower-emoji { font-size:64px; margin-bottom:8px; animation:bob 2.2s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  h1.title { font-size:42px; font-weight:900; letter-spacing:1px;
+             text-shadow:0 4px 18px rgba(0,0,0,.6); }
+  .subtitle { margin-top:6px; font-size:15px; opacity:.9; font-weight:600; }
+  .stats-row { display:flex; gap:10px; margin:18px 0 4px; }
+  .stat { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18);
+          border-radius:14px; padding:10px 18px; min-width:96px; }
+  .stat .v { font-size:24px; font-weight:800; }
+  .stat .k { font-size:11px; opacity:.75; text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+  .big-btn { margin-top:22px; font-size:22px; font-weight:800; color:#0b1026;
+             background:linear-gradient(180deg,#ffe27a,#ffb63d); border:none; border-radius:999px;
+             padding:16px 58px; cursor:pointer; box-shadow:0 8px 24px rgba(255,182,61,.45); }
+  .big-btn:active { transform:scale(.96); }
+  .hint { margin-top:14px; font-size:13px; opacity:.7; }
+  .rank { font-size:20px; font-weight:800; margin-top:4px; }
+  #newBest { margin-top:10px; font-size:14px; font-weight:800; color:#ffe27a;
+             background:rgba(255,226,122,.14); border:1px solid rgba(255,226,122,.5);
+             padding:6px 16px; border-radius:999px; }
+  #newBest.hidden { display:none; }
+  .btn-row { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; justify-content:center; }
+  .btn { font-size:16px; font-weight:700; color:#fff; background:rgba(255,255,255,.14);
+         border:1px solid rgba(255,255,255,.25); border-radius:999px; padding:12px 22px; cursor:pointer; }
+  .btn:active { transform:scale(.95); }
+  .btn.primary { background:linear-gradient(180deg,#7ae2ff,#3d9fff); border:none; color:#0b1026; }
+  .ver { position:absolute; bottom:calc(12px + env(safe-area-inset-bottom)); font-size:11px; opacity:.5; }
+
+  /* ---------- Skins ---------- */
+  .skin-label { margin-top:18px; font-size:11px; font-weight:800; letter-spacing:2px; opacity:.6; }
+  #skinRow { display:flex; gap:10px; margin-top:10px; justify-content:center; }
+  .skin-btn { font-size:26px; width:52px; height:52px; border-radius:14px;
+              border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.1);
+              cursor:pointer; line-height:1; }
+  .skin-btn.sel { border-color:#ffe27a; box-shadow:0 0 14px rgba(255,226,122,.65); }
+  .skin-btn.locked { opacity:.4; cursor:default; }
+  #skinHint { margin-top:8px; font-size:12px; opacity:.7; min-height:16px; }
+
+  /* ---------- Sound & feel chips ---------- */
+  #sfxRow { display:flex; gap:8px; margin-top:10px; justify-content:center; flex-wrap:wrap; }
+  .fx-chip { font-size:13px; font-weight:700; color:#fff; background:rgba(255,255,255,.1);
+             border:2px solid rgba(255,255,255,.25); border-radius:999px;
+             padding:9px 14px; cursor:pointer; }
+  .fx-chip.off { opacity:.38; }
+
+  /* ---------- Toast ---------- */
+  #toast { position:fixed; left:50%; bottom:calc(70px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px);
+           background:rgba(0,0,0,.8); color:#fff; font-size:14px; font-weight:600;
+           padding:10px 20px; border-radius:999px; opacity:0; transition:opacity .25s, transform .25s;
+           z-index:50; pointer-events:none; white-space:nowrap; }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="hudLeft">
+    <div id="dailyLabel">Daily Tower</div>
+    <div id="streakLabel">🔥 0</div>
+  </div>
+  <div id="scoreLabel">0</div>
+  <button id="muteBtn" aria-label="Toggle sound">🔊</button>
+</div>
+
+<div id="startScreen" class="overlay">
+  <div class="tower-emoji">🗼</div>
+  <h1 class="title">ONE-TAP<br>TOWER</h1>
+  <div class="subtitle" id="startDailyLabel">Daily Tower</div>
+  <div class="stats-row">
+    <div class="stat"><div class="v" id="startBest">0</div><div class="k">Best</div></div>
+    <div class="stat"><div class="v" id="startStreak">🔥 0</div><div class="k">Day streak</div></div>
+  </div>
+  <button class="big-btn" id="playBtn">▶ PLAY</button>
+  <div class="hint">Tap anywhere — or press Space — to drop each block.<br>Line it up for PERFECT combos.</div>
+  <div class="skin-label">BLOCK SKIN</div>
+  <div id="skinRow"></div>
+  <div id="skinHint"></div>
+  <div class="skin-label">SOUND &amp; FEEL</div>
+  <div id="sfxRow"></div>
+  <div class="ver">v2.2 · 30-day traffic challenge</div>
+</div>
+
+<div id="overScreen" class="overlay hidden">
+  <div class="tower-emoji">💥</div>
+  <h1 class="title" style="font-size:34px">TOWER TOPPLED</h1>
+  <div class="rank" id="rankLabel"></div>
+  <div id="newBest" class="hidden">★ NEW BEST ★</div>
+  <div class="stats-row">
+    <div class="stat"><div class="v" id="finalScore">0</div><div class="k">Score</div></div>
+    <div class="stat"><div class="v" id="finalBest">0</div><div class="k">Best</div></div>
+    <div class="stat"><div class="v" id="finalDaily">0</div><div class="k">Daily best</div></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn primary" id="shareBtn">📤 Share</button>
+    <button class="btn" id="challengeBtn">🔗 Challenge a friend</button>
+    <button class="btn" id="againBtn">↻ Play again</button>
+  </div>
+  <div class="hint">Same tower for everyone today — beat your friends' scores.</div>
+</div>
+
+<div id="pauseScreen" class="overlay hidden">
+  <div class="tower-emoji">⏸️</div>
+  <h1 class="title" style="font-size:34px">PAUSED</h1>
+  <div class="hint">Tab was hidden — tap anywhere to resume.</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════════════
+   ONE-TAP TOWER v2.2 — single-file arcade stacker
+   Sections: utils/RNG · audio · haptics · storage · skins · state · gameplay ·
+             update · render · UI/screens · share · boot
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ---------------- utils: dates, hashing, seeded RNG ---------------- */
+function fmtDateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+// FNV-1a string hash -> uint32 (for seeding from a date string)
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+// mulberry32 — small deterministic PRNG
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ---------------- audio: tiny WebAudio bleeps, no files ---------------- */
+let AC = null;
+let muted = false;   // master mute (HUD button / 'M' key) — gates every sound
+try { muted = localStorage.getItem('ott_mute') === '1'; } catch (e) { /* private mode */ }
+function ac() {
+  if (!AC) { const Ctor = window.AudioContext || window.webkitAudioContext; if (Ctor) AC = new Ctor(); }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type, vol, slideTo, delay) {
+  if (muted) return;
+  try {
+    const c = ac(); if (!c) return;
+    const t = c.currentTime + (delay || 0);
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t + dur);
+    g.gain.setValueAtTime(vol || 0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.03);
+  } catch (e) { /* audio unavailable — stay silent */ }
+}
+// per-effect sound prefs (v2.2): master mute still gates everything on top
+const SFX_KEYS = ['drop', 'perfect', 'over'];
+function loadSoundPrefs() {
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem('ott_sound')); } catch (e) {}
+  if (!p || typeof p !== 'object') {
+    p = { drop: true, perfect: true, over: true };
+    if (muted) p.drop = p.perfect = p.over = false;   // migrate the old master flag once
+    try { localStorage.setItem('ott_sound', JSON.stringify(p)); } catch (e) {}
+  }
+  for (const k of SFX_KEYS) if (typeof p[k] !== 'boolean') p[k] = true;
+  return p;
+}
+let soundPrefs = loadSoundPrefs();
+function soundOn(which) { return !!soundPrefs[which]; }
+function setSound(which, on) {
+  if (SFX_KEYS.indexOf(which) < 0) return false;
+  soundPrefs[which] = !!on;
+  try { localStorage.setItem('ott_sound', JSON.stringify(soundPrefs)); } catch (e) {}
+  return true;
+}
+function sfxAllowed(which) { return !muted && soundOn(which); }
+const sfx = {
+  drop()    { if (!sfxAllowed('drop')) return; tone(210, 0.10, 'triangle', 0.30, 90); },
+  perfect(combo) {                                                            // chime arpeggio, pitch rises with combo
+    if (!sfxAllowed('perfect')) return;
+    const steps = Math.min(combo, 12);
+    const base = 523 * Math.pow(2, steps / 12);
+    tone(base, 0.14, 'sine', 0.22); tone(base * 1.25, 0.14, 'sine', 0.20, null, 0.07);
+    tone(base * 1.5, 0.20, 'sine', 0.20, null, 0.14);
+  },
+  gameOver(){ if (!sfxAllowed('over')) return;
+    tone(420, 0.55, 'sawtooth', 0.14, 70); tone(300, 0.4, 'triangle', 0.12, 60, 0.1); }
+};
+
+/* ---------------- haptics: mobile vibration on perfect drops (v2.2) ----------------
+   navigator.vibrate is Android-only; guarded so desktop/iOS stay silent. */
+let hapticsOn = true;
+try { hapticsOn = localStorage.getItem('ott_haptics') !== '0'; } catch (e) {}
+function getHaptics() { return hapticsOn; }
+function setHaptics(on) {
+  hapticsOn = !!on;
+  try { localStorage.setItem('ott_haptics', hapticsOn ? '1' : '0'); } catch (e) {}
+  return hapticsOn;
+}
+function hapticFor(kind, combo) {   // pure: vibration pattern for an event, or null
+  if (!hapticsOn) return null;
+  if (kind === 'perfect') return (combo || 0) >= 5 ? [25, 40, 25] : [20];
+  if (kind === 'gameover') return [70, 40, 70];
+  return null;
+}
+function buzz(kind, combo) {
+  const pattern = hapticFor(kind, combo);
+  if (!pattern) return;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(pattern);
+  } catch (e) { /* vibrate unavailable — stay silent */ }
+}
+function toggleMute() {
+  muted = !muted;
+  try { localStorage.setItem('ott_mute', muted ? '1' : '0'); } catch (e) {}
+  document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+}
+
+/* ---------------- storage helpers ---------------- */
+function lsGet(k, fb) { try { const v = localStorage.getItem(k); return v === null ? fb : v; } catch (e) { return fb; } }
+function lsSet(k, v)  { try { localStorage.setItem(k, v); } catch (e) {} }
+function loadStreak() {
+  try { return JSON.parse(localStorage.getItem('ott_streak')) || { count: 0, last: '' }; }
+  catch (e) { return { count: 0, last: '' }; }
+}
+function bumpStreak(todayKey) {
+  const s = loadStreak();
+  const y = new Date(Date.now() - 864e5);
+  const yKey = fmtDateKey(y);
+  if (s.last !== todayKey) {
+    s.count = (s.last === yKey) ? s.count + 1 : 1;
+    s.last = todayKey;
+    lsSet('ott_streak', JSON.stringify(s));
+  }
+  return s.count;
+}
+
+/* ---------------- block skins: unlocked by day-streak ----------------
+   Purely cosmetic — never touches gameplay, seeds, or daily parity.
+   Streak comes from the existing ott_streak record (bumped in startGame). */
+const SKINS = [
+  { id: 'neon',   name: 'Neon Night', emoji: '💠', unlock: 0,
+    hueBase: 205, hueStep: 11, sat: 72, top: 64, bot: 44, part: ['#ffe27a', '#ffffff'] },
+  { id: 'ember',  name: 'Ember',      emoji: '🔥', unlock: 3,
+    hueBase: 12,  hueStep: 7,  sat: 78, top: 62, bot: 42, part: ['#ffb63d', '#ff6b4a'] },
+  { id: 'tide',   name: 'Tide Pool',  emoji: '🌊', unlock: 7,
+    hueBase: 175, hueStep: 9,  sat: 68, top: 66, bot: 42, part: ['#7ae2ff', '#a5ffe3'] },
+  { id: 'royal',  name: 'Royal',      emoji: '👑', unlock: 14,
+    hueBase: 285, hueStep: 8,  sat: 70, top: 68, bot: 46, part: ['#e0a5ff', '#ffffff'] },
+  { id: 'midas',  name: 'Midas',      emoji: '🪙', unlock: 30,
+    hueBase: 45,  hueStep: 4,  sat: 85, top: 66, bot: 46, part: ['#ffe27a', '#fff3c4'] },
+];
+function skinById(id) {
+  for (const s of SKINS) if (s.id === id) return s;
+  return SKINS[0];
+}
+function skinUnlocked(skin, streak) { return streak >= skin.unlock; }
+function unlockedSkins(streak) { return SKINS.filter(s => skinUnlocked(s, streak)); }
+function getStreakCount() {
+  const s = loadStreak();
+  return (s && s.count) || 0;
+}
+function getSkin() {                                  // saved choice, clamped to unlocked
+  const saved = skinById(lsGet('ott_skin', 'neon'));
+  return skinUnlocked(saved, getStreakCount()) ? saved : SKINS[0];
+}
+function setSkin(id) {                                // false if locked — never auto-equips
+  const skin = skinById(id);
+  if (!skinUnlocked(skin, getStreakCount())) return false;
+  lsSet('ott_skin', id);
+  return true;
+}
+let skinCur = SKINS[0];                               // cached; refreshed on boot/run/equip
+function refreshSkin() { skinCur = getSkin(); }
+function nextSkinHint(streak) {
+  const next = SKINS.find(s => streak < s.unlock);
+  return next ? ('Next: ' + next.emoji + ' ' + next.name + ' at ' + next.unlock + '🔥')
+              : 'All skins unlocked — legend status 👑';
+}
+function announceSkinUnlocks() {                      // toast once per newly unlocked skin
+  const streak = getStreakCount();
+  let seen = [];
+  try { seen = JSON.parse(lsGet('ott_skins_seen', '[]')) || []; } catch (e) {}
+  const newly = SKINS.filter(s => s.unlock > 0 && streak >= s.unlock && seen.indexOf(s.id) < 0);
+  if (newly.length) {
+    const s = newly[newly.length - 1];
+    toast('Unlocked ' + s.emoji + ' ' + s.name + ' skin — pick it below 👇');
+    lsSet('ott_skins_seen', JSON.stringify(unlockedSkins(streak).map(x => x.id)));
+  }
+}
+
+/* ---------------- game constants & state ---------------- */
+const BLOCK_H = 34;        // block height (css px)
+const BASE_W  = 200;       // starting block width
+const PERFECT_TOL = 8;     // px tolerance for a "perfect" drop
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+
+const G = {
+  state: 'start',            // start | playing | over
+  tower: [],                 // [{x, w}] — tower[0] is the fixed base
+  marks: [],                 // 'P' | 'S' per placed block (for the share card)
+  moving: null,              // {x, w, dir, speed} — the sliding block
+  missAnim: null,            // falling block after a total miss
+  particles: [], debris: [],
+  camY: 0, targetCamY: 0, shake: 0,
+  score: 0, combo: 0, time: 0,
+  paused: false, slowmoT: 0,                        // pause + near-miss slow-mo
+  rng: null, seed: 0, seedCode: '', isDaily: true,
+  dayKey: '', dayLabel: '', headerLabel: '',
+};
+
+/* ---------------- seed: daily date or ?seed= challenge link ---------------- */
+(function initSeed() {
+  const now = new Date();
+  G.dayKey = fmtDateKey(now);                                     // user's LOCAL date
+  G.dayLabel = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const p = new URLSearchParams(location.search);
+  const code = (p.get('seed') || '').trim().toLowerCase();
+  const v = parseInt(code, 36);
+  if (code && Number.isFinite(v)) {
+    G.seed = v >>> 0; G.seedCode = code; G.isDaily = false;        // challenge link
+    G.headerLabel = '⚔️ Challenge · ' + code;
+  } else {
+    G.seed = hashStr('one-tap-tower|' + G.dayKey);                 // daily seed — same for everyone today
+    G.seedCode = G.seed.toString(36);
+    G.headerLabel = '🗓️ Daily Tower · ' + G.dayLabel;
+  }
+})();
+
+/* ---------------- gameplay ---------------- */
+function horizonY() { return H * 0.74; }
+
+function startGame() {
+  ac(); // unlock audio on the user gesture
+  G.tower = [{ x: W / 2, w: BASE_W }];
+  G.marks = [];
+  G.particles = []; G.debris = [];
+  G.missAnim = null;
+  G.camY = 0; G.targetCamY = 0; G.shake = 0;
+  G.score = 0; G.combo = 0;
+  G.paused = false; G.slowmoT = 0;
+  G.rng = mulberry32(G.seed);                                     // deterministic block sequence
+  if (G.isDaily) G.streak = bumpStreak(G.dayKey); else G.streak = loadStreak().count;
+  refreshSkin();                                                  // streak may have unlocked skins
+  G.state = 'playing';
+  spawnMoving();
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('overScreen').classList.add('hidden');
+  document.getElementById('pauseScreen').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('dailyLabel').textContent = G.headerLabel;
+  document.getElementById('streakLabel').textContent = '🔥 ' + G.streak;
+  setScore(0);
+}
+
+function spawnMoving() {
+  const prev = G.tower[G.tower.length - 1];
+  const lvl = G.tower.length;                                     // 1-based difficulty level
+  // smooth difficulty ramp: fast early gains, gentle late curve (seeded jitter keeps daily parity)
+  const speed = Math.min(120 + 200 * (1 - Math.exp(-lvl / 16)) + G.rng() * (40 + lvl * 1.5), 440);
+  const dir = G.rng() < 0.5 ? -1 : 1;
+  const range = Math.max(40, W / 2 - prev.w / 2 + 30);
+  const x = W / 2 + (G.rng() * 2 - 1) * range * 0.9;
+  G.moving = { x, w: prev.w, dir, speed, range };
+}
+
+function movingTopY() {  // screen y of the moving block's top edge
+  return horizonY() + G.camY - G.tower.length * BLOCK_H - BLOCK_H;
+}
+
+function drop() {
+  const m = G.moving; if (!m) return;
+  const prev = G.tower[G.tower.length - 1];
+  const off = m.x - prev.x;
+  const overlap = prev.w / 2 + m.w / 2 - Math.abs(off);
+  const topY = movingTopY();
+
+  if (overlap <= 0) { miss(m, topY); return; }                    // total miss → game over
+
+  if (Math.abs(off) <= PERFECT_TOL) {                             // PERFECT — keep full width
+    G.tower.push({ x: prev.x, w: m.w });
+    G.marks.push('P');
+    G.combo++;
+    burst(prev.x, topY, 26);
+    sfx.perfect(G.combo);
+    buzz('perfect', G.combo);
+    if (G.combo >= 3) toast(G.combo + 'x PERFECT! ✨');
+  } else {                                                        // slice the overhang
+    const mL = m.x - m.w / 2, mR = m.x + m.w / 2;
+    const pL = prev.x - prev.w / 2, pR = prev.x + prev.w / 2;
+    const left = Math.max(mL, pL), right = Math.min(mR, pR);
+    if (mL < left - 0.5) addDebris(mL, left, topY, -1);
+    if (right < mR - 0.5) addDebris(right, mR, topY, 1);
+    G.tower.push({ x: (left + right) / 2, w: right - left });
+    G.marks.push('S');
+    G.combo = 0;
+    if (Math.abs(off) <= PERFECT_TOL + 16) {                      // near-miss: brief slow-mo beat
+      G.slowmoT = 0.22;
+      toast('SO CLOSE! 😱');
+    }
+    sfx.drop();
+  }
+  G.score = G.tower.length - 1;
+  G.targetCamY = (G.tower.length - 1) * BLOCK_H;
+  setScore(G.score);
+  spawnMoving();
+}
+
+function miss(m, topY) {
+  G.moving = null;
+  G.missAnim = { x: m.x, y: topY, w: m.w, vy: 80, rot: 0, vr: (m.dir * 3) || 2, t: 0 };
+  G.shake = 18;
+  sfx.gameOver();
+  buzz('gameover');
+}
+
+function gameOver() {
+  G.state = 'over';
+  // persist scores
+  const best = parseInt(lsGet('ott_best', '0'), 10) || 0;
+  const isNewBest = G.score > best;
+  if (isNewBest) lsSet('ott_best', String(G.score));
+  let dailyBest = 0;
+  if (G.isDaily) {
+    dailyBest = parseInt(lsGet('ott_day_' + G.dayKey, '0'), 10) || 0;
+    if (G.score > dailyBest) { dailyBest = G.score; lsSet('ott_day_' + G.dayKey, String(dailyBest)); }
+  }
+  // fill the game-over screen
+  document.getElementById('finalScore').textContent = G.score;
+  document.getElementById('finalBest').textContent = Math.max(best, G.score);
+  document.getElementById('finalDaily').textContent = G.isDaily ? dailyBest : '—';
+  document.getElementById('rankLabel').textContent = rankFor(G.score);
+  document.getElementById('newBest').classList.toggle('hidden', !isNewBest);
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('overScreen').classList.remove('hidden');
+}
+
+function rankFor(s) {
+  if (s < 5)  return 'Wobbly Apprentice 🌱';
+  if (s < 12) return 'Steady Stacker 🧱';
+  if (s < 20) return 'Tower Tamer 🏗️';
+  if (s < 32) return 'Sky Architect 🏙️';
+  if (s < 50) return 'Cloud Emperor ☁️';
+  return 'Tower Legend 👑';
+}
+
+/* ---------------- particles & debris ---------------- */
+function burst(x, y, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 220;
+    const c = skinCur.part;
+    G.particles.push({ x, y: y + 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120,
+                       life: 0.7, max: 0.7, size: 2 + Math.random() * 4,
+                       color: Math.random() < 0.5 ? c[0] : c[1] });
+  }
+}
+function addDebris(x0, x1, topY, side) {
+  G.debris.push({ x: (x0 + x1) / 2, y: topY, w: Math.max(1, x1 - x0),
+                  vx: side * 150 + (G.moving ? G.moving.dir * 60 : 0), vy: -90,
+                  rot: 0, vr: side * 5 });
+}
+
+/* ---------------- update ---------------- */
+function update(dt) {
+  // sliding block
+  if (G.state === 'playing' && G.moving && !G.missAnim) {
+    const m = G.moving, cx = W / 2;
+    m.x += m.dir * m.speed * dt;
+    if (m.x > cx + m.range) { m.x = cx + m.range; m.dir = -1; }
+    if (m.x < cx - m.range) { m.x = cx - m.range; m.dir = 1; }
+  }
+  // missed block tumbling away
+  if (G.missAnim) {
+    const a = G.missAnim;
+    a.vy += 1500 * dt; a.y += a.vy * dt; a.rot += a.vr * dt; a.t += dt;
+    if (a.t > 1.1) { G.missAnim = null; gameOver(); }
+  }
+  // particles
+  for (let i = G.particles.length - 1; i >= 0; i--) {
+    const p = G.particles[i];
+    p.vy += 500 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+    if (p.life <= 0) G.particles.splice(i, 1);
+  }
+  // debris
+  for (let i = G.debris.length - 1; i >= 0; i--) {
+    const d = G.debris[i];
+    d.vy += 1100 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.rot += d.vr * dt;
+    if (d.y > H + 120) G.debris.splice(i, 1);
+  }
+  // smooth camera follow + shake decay
+  G.camY += (G.targetCamY - G.camY) * Math.min(1, dt * 5);
+  if (Math.abs(G.targetCamY - G.camY) < 0.5) G.camY = G.targetCamY;
+  G.shake = Math.max(0, G.shake - dt * 42);
+}
+
+/* ---------------- render ---------------- */
+function rrect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function blockHue(i) { return (skinCur.hueBase + i * skinCur.hueStep) % 360; }
+function drawBlock(x, w, topY, hue, alpha) {
+  if (w <= 0) return;
+  ctx.save();
+  if (alpha !== undefined) ctx.globalAlpha = alpha;
+  const g = ctx.createLinearGradient(0, topY, 0, topY + BLOCK_H);
+  g.addColorStop(0, 'hsl(' + hue + ',' + skinCur.sat + '%,' + skinCur.top + '%)');
+  g.addColorStop(1, 'hsl(' + hue + ',' + Math.max(40, skinCur.sat - 6) + '%,' + skinCur.bot + '%)');
+  rrect(x - w / 2, topY, w, BLOCK_H, 7);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.35)';                        // top highlight
+  rrect(x - w / 2 + 3, topY + 3, w - 6, 5, 2.5); ctx.fill();
+  ctx.restore();
+}
+function render() {
+  const n = Math.max(0, G.tower.length - 1);                      // placed blocks
+  const hue = ((215 - n * 2.2) % 360 + 360) % 360;                // sky shifts as you climb
+
+  ctx.save();
+  if (G.shake > 0) ctx.translate((Math.random() - 0.5) * G.shake, (Math.random() - 0.5) * G.shake);
+
+  // sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, 'hsl(' + hue + ',58%,16%)');
+  sky.addColorStop(0.55, 'hsl(' + hue + ',55%,38%)');
+  sky.addColorStop(1, 'hsl(' + ((hue + 30) % 360) + ',65%,62%)');
+  ctx.fillStyle = sky; ctx.fillRect(-20, -20, W + 40, H + 40);
+
+  // stars (fade in high up)
+  if (n > 15) {
+    const a = Math.min(1, (n - 15) / 15);
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 70; i++) {
+      const sx = (i * 197.3) % W, sy = (i * 131.7) % (H * 0.7);
+      ctx.globalAlpha = a * (0.25 + 0.55 * Math.abs(Math.sin(G.time * 1.6 + i * 1.7)));
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+  // drifting clouds (low altitude)
+  if (n < 50) {
+    const a = Math.max(0, 1 - n / 50) * 0.5;
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 6; i++) {
+      const cxx = ((i * 0.37 * W + G.time * (6 + i * 2.5)) % (W + 320)) - 160;
+      const cy = (i * 0.23 * H) % (H * 0.45) + 20;
+      const s = 26 + (i % 3) * 14;
+      ctx.globalAlpha = a;
+      ctx.beginPath();
+      ctx.ellipse(cxx, cy, s, s * 0.42, 0, 0, Math.PI * 2);
+      ctx.ellipse(cxx - s * 0.7, cy + 6, s * 0.6, s * 0.3, 0, 0, Math.PI * 2);
+      ctx.ellipse(cxx + s * 0.7, cy + 6, s * 0.6, s * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  const hz = horizonY();
+  // tower blocks (skip off-screen ones)
+  for (let i = 0; i < G.tower.length; i++) {
+    const b = G.tower[i];
+    const topY = hz + G.camY - (i + 1) * BLOCK_H;
+    if (topY > H + 60 || topY + BLOCK_H < -60) continue;
+    drawBlock(b.x, b.w, topY, blockHue(i));
+  }
+  // landing-zone hint: ghost of the previous block's footprint
+  if (G.state === 'playing' && G.moving && !G.missAnim) {
+    const prev = G.tower[G.tower.length - 1];
+    const gy = hz + G.camY - G.tower.length * BLOCK_H;
+    ctx.save();
+    ctx.globalAlpha = 0.22; ctx.fillStyle = '#fff';
+    rrect(prev.x - prev.w / 2, gy, prev.w, BLOCK_H, 7); ctx.fill();
+    ctx.restore();
+    const my = movingTopY();
+    drawBlock(G.moving.x, G.moving.w, my, blockHue(G.tower.length));
+  }
+  // tumbling missed block
+  if (G.missAnim) {
+    const a = G.missAnim;
+    ctx.save(); ctx.translate(a.x, a.y + BLOCK_H / 2); ctx.rotate(a.rot); ctx.translate(-a.x, -(a.y + BLOCK_H / 2));
+    ctx.globalAlpha = Math.max(0, 1 - a.t);
+    drawBlock(a.x, a.w, a.y, blockHue(G.tower.length), 1);
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  // debris
+  for (const d of G.debris) {
+    ctx.save(); ctx.translate(d.x, d.y + BLOCK_H / 2); ctx.rotate(d.rot); ctx.translate(-d.x, -(d.y + BLOCK_H / 2));
+    drawBlock(d.x, d.w, d.y, blockHue(G.tower.length - 1), 0.9);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  // particles
+  for (const p of G.particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/* ---------------- HUD / UI ---------------- */
+function setScore(s) { document.getElementById('scoreLabel').textContent = s; }
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
+}
+function refreshStartScreen() {
+  document.getElementById('startBest').textContent = lsGet('ott_best', '0');
+  document.getElementById('startStreak').textContent = '🔥 ' + (loadStreak().count || 0);
+  document.getElementById('startDailyLabel').textContent = G.headerLabel +
+    (G.isDaily ? '' : ' — same tower, same seed');
+  document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+  refreshSkin();
+  renderSkinRow();
+  renderSfxRow();
+  document.getElementById('skinHint').textContent = nextSkinHint(getStreakCount());
+  announceSkinUnlocks();
+}
+
+/* ---------------- sound & haptics chips (start screen) ---------------- */
+function renderSfxRow() {
+  const row = document.getElementById('sfxRow');
+  row.innerHTML = '';
+  const items = [
+    { id: 'drop',    emoji: '🧱', label: 'Drop',  on: soundOn('drop') },
+    { id: 'perfect', emoji: '✨', label: 'Chime', on: soundOn('perfect') },
+    { id: 'over',    emoji: '💥', label: 'Over',  on: soundOn('over') },
+    { id: 'haptics', emoji: '📳', label: 'Buzz',  on: getHaptics() },
+  ];
+  for (const it of items) {
+    const b = document.createElement('button');
+    b.className = 'fx-chip' + (it.on ? '' : ' off');
+    b.textContent = it.emoji + ' ' + it.label;
+    b.title = (it.id === 'haptics' ? 'Vibration on perfect drops (mobile)'
+                                  : 'Sound: ' + it.label) +
+              ' — ' + (it.on ? 'on' : 'off') + ', tap to toggle';
+    b.setAttribute('aria-pressed', it.on ? 'true' : 'false');
+    b.addEventListener('pointerdown', e => e.stopPropagation()); // don't start the game
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      if (it.id === 'haptics') setHaptics(!getHaptics());
+      else setSound(it.id, !soundOn(it.id));
+      renderSfxRow();
+    });
+    row.appendChild(b);
+  }
+}
+
+/* ---------------- skin picker (start screen) ---------------- */
+function renderSkinRow() {
+  const row = document.getElementById('skinRow');
+  const streak = getStreakCount();
+  row.innerHTML = '';
+  for (const s of SKINS) {
+    const un = skinUnlocked(s, streak);
+    const b = document.createElement('button');
+    b.className = 'skin-btn' + (skinCur.id === s.id ? ' sel' : '') + (un ? '' : ' locked');
+    b.textContent = un ? s.emoji : '🔒';
+    b.title = s.name + (un ? '' : ' — unlocks at ' + s.unlock + '🔥 streak');
+    b.setAttribute('aria-label', s.name + (un ? ' skin' : ' skin, locked — needs ' + s.unlock + ' day streak'));
+    b.addEventListener('pointerdown', e => e.stopPropagation()); // don't start the game
+    if (un) b.addEventListener('click', e => {
+      e.stopPropagation();
+      if (setSkin(s.id)) {
+        refreshSkin(); renderSkinRow();
+        toast(s.emoji + ' ' + s.name + ' equipped');
+      }
+    });
+    row.appendChild(b);
+  }
+}
+
+/* ---------------- share card + challenge links ---------------- */
+function challengeURL() {
+  return location.href.split('?')[0].split('#')[0] + '?seed=' + G.seedCode;
+}
+function buildShareText() {
+  const rows = [];
+  for (let i = 0; i < G.marks.length; i += 5)
+    rows.push(G.marks.slice(i, i + 5).map(m => (m === 'P' ? '🟩' : '🟨')).join(''));
+  const best = lsGet('ott_best', '0');
+  const rank = rankFor(G.score);
+  return '🗼 One-Tap Tower · ' + G.dayLabel +
+         '\nScore: ' + G.score + ' · ' + rank +
+         '\nBest: ' + best +
+         '\n' + (rows.join('\n') || '🟨') +
+         '\nCan you beat my tower?\n' + challengeURL();
+}
+function copyText(t) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(() => toast('Copied! 📋'),
+      () => fallbackCopy(t));
+  } else fallbackCopy(t);
+}
+function fallbackCopy(t) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    toast('Copied! 📋');
+  } catch (e) { toast('Copy failed — screenshot it! 📸'); }
+}
+async function onShare() {
+  const text = buildShareText();
+  if (navigator.share) {
+    try { await navigator.share({ title: 'One-Tap Tower', text }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }        // user cancelled — stay quiet
+  }
+  copyText(text);
+}
+
+/* ---------------- input ---------------- */
+function handleTap() {
+  ac(); // ensure audio is unlocked by the gesture
+  if (G.paused) { resumeGame(); return; }
+  if (G.state === 'start') startGame();
+  else if (G.state === 'playing' && !G.missAnim) drop();
+}
+function resumeGame() {
+  G.paused = false;
+  document.getElementById('pauseScreen').classList.add('hidden');
+}
+canvas.addEventListener('pointerdown', e => { e.preventDefault(); handleTap(); });
+document.getElementById('startScreen').addEventListener('pointerdown', e => { e.preventDefault(); handleTap(); });
+document.getElementById('againBtn').addEventListener('click', () => startGame());
+document.getElementById('shareBtn').addEventListener('click', onShare);
+document.getElementById('challengeBtn').addEventListener('click', () => copyText('🏗️ Beat my One-Tap Tower!\n' + challengeURL()));
+document.getElementById('muteBtn').addEventListener('click', e => { e.stopPropagation(); toggleMute(); });
+document.getElementById('pauseScreen').addEventListener('pointerdown', e => { e.preventDefault(); resumeGame(); });
+// auto-pause when the tab is hidden (prevents unfair deaths + runaway audio)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && G.state === 'playing' && !G.paused) {
+    G.paused = true;
+    document.getElementById('pauseScreen').classList.remove('hidden');
+  }
+});
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowDown') { e.preventDefault(); handleTap(); }
+  if (e.key === 'm' || e.key === 'M') toggleMute();
+});
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault());
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---------------- resize + main loop ---------------- */
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+resize();
+refreshStartScreen();
+// idle backdrop: draw the base block behind the start screen
+G.tower = [{ x: W / 2, w: BASE_W }];
+let last = performance.now();
+function frame(now) {
+  let rawDt = (now - last) / 1000; last = now;
+  rawDt = Math.min(rawDt, 0.05);
+  let dt = rawDt;
+  if (G.slowmoT > 0) { G.slowmoT -= rawDt; dt = rawDt * 0.3; }    // near-miss slow-mo
+  G.time += dt;
+  if (!G.paused) update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
